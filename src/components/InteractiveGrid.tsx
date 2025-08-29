@@ -59,24 +59,27 @@ export default function InteractiveGrid() {
     // Build tech-style geometric grid
     const buildCells = (w: number, h: number) => {
       const cells: Cell[] = [];
-      const gridArea = { x: w * 0.1, y: h * 0.1, w: w * 0.8, h: h * 0.5 }; // Top 60% for grid
+      const gridArea = { x: 0, y: h * 0.05, w: w, h: h * 0.55 }; // Full width, top 60% for grid
       
       // Hexagonal grid pattern
       const hexRadius = 25;
       const hexSpacing = hexRadius * 1.8;
       const rowHeight = hexRadius * Math.sqrt(3);
       
-      const cols = Math.floor(gridArea.w / hexSpacing);
+      const cols = Math.floor(gridArea.w / hexSpacing) + 2; // Extra columns to ensure full coverage
       const rows = Math.floor(gridArea.h / rowHeight);
       
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
           const offset = row % 2 === 0 ? 0 : hexSpacing / 2;
-          const x = gridArea.x + col * hexSpacing + offset;
+          const x = gridArea.x + col * hexSpacing + offset - hexSpacing; // Start before left edge
           const y = gridArea.y + row * rowHeight;
           
-          // Skip some cells randomly for a more organic tech look
-          if (Math.random() > 0.15) {
+          // Skip some cells randomly for a more organic tech look, but only if not near edges
+          const nearEdge = x < hexSpacing || x > w - hexSpacing;
+          const skipChance = nearEdge ? 0.05 : 0.15; // Less skipping near edges
+          
+          if (Math.random() > skipChance) {
             const cellType = Math.random();
             let type: Cell['type'];
             let size = hexRadius;
@@ -263,7 +266,9 @@ export default function InteractiveGrid() {
       const my = mouseRef.current.y;
       const time = timeRef.current;
 
-      const influenceRadius = 80;
+      // Mobile-optimized interaction radius (larger for touch)
+      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const influenceRadius = isMobile ? 120 : 80; // Larger radius for mobile touch
       const fadeOutDuration = 2000;
       
       for (const cell of cells) {
@@ -376,14 +381,41 @@ export default function InteractiveGrid() {
       animationRef.current = requestAnimationFrame(render);
     };
 
-    // mouse handlers
+    // mouse and touch handlers
     const onMove = (e: MouseEvent) => {
       mouseRef.current.x = e.clientX;
       mouseRef.current.y = e.clientY;
     };
+    
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault(); // Prevent scrolling while touching
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        mouseRef.current.x = touch.clientX;
+        mouseRef.current.y = touch.clientY;
+      }
+    };
+    
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        mouseRef.current.x = touch.clientX;
+        mouseRef.current.y = touch.clientY;
+      }
+    };
+    
     const onLeave = () => {
       mouseRef.current.x = -9999;
       mouseRef.current.y = -9999;
+    };
+    
+    const onTouchEnd = () => {
+      // Keep the position for a moment before hiding
+      setTimeout(() => {
+        mouseRef.current.x = -9999;
+        mouseRef.current.y = -9999;
+      }, 100);
     };
 
     // init
@@ -391,20 +423,53 @@ export default function InteractiveGrid() {
     window.addEventListener("resize", resize);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseleave", onLeave);
+    
+    // Add touch event listeners for mobile
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd);
+    canvas.addEventListener("touchcancel", onTouchEnd);
+    
     animationRef.current = requestAnimationFrame(render);
 
     return () => {
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseleave", onLeave);
+      
+      // Remove touch event listeners
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("touchcancel", onTouchEnd);
+      
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
-      <canvas ref={canvasRef} className="interactive-canvas" />
+    <div style={{ 
+      position: 'relative', 
+      width: '100%', 
+      height: '100vh',
+      overflow: 'hidden', // Prevent scrolling on mobile
+      touchAction: 'none', // Prevent default touch behaviors
+      userSelect: 'none', // Prevent text selection on touch
+      WebkitUserSelect: 'none', // Safari
+      WebkitTouchCallout: 'none', // Prevent callout on long press
+    }}>
+      <canvas 
+        ref={canvasRef} 
+        className="interactive-canvas"
+        style={{
+          touchAction: 'none', // Prevent scrolling and zooming
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          display: 'block'
+        }}
+      />
       <div style={{
         position: 'absolute',
         bottom: '15%',
@@ -413,18 +478,32 @@ export default function InteractiveGrid() {
         textAlign: 'center',
         color: 'white',
         fontFamily: '"Courier New", "Monaco", "Lucida Console", monospace',
-        fontSize: 'clamp(2rem, 5vw, 4rem)',
+        fontSize: 'clamp(1.5rem, 8vw, 4rem)', // Better mobile scaling
         fontWeight: 'bold',
         textShadow: '0 0 20px rgba(0, 255, 200, 0.5)',
-        lineHeight: '1.2'
+        lineHeight: '1.2',
+        padding: '0 1rem', // Add padding for mobile
+        maxWidth: '90%', // Prevent text overflow on small screens
+        pointerEvents: 'none', // Don't interfere with touch events
       }}>
         <div>&lt;CodeClub&gt;</div>
         <div style={{
-          fontSize: 'clamp(1rem, 2.5vw, 1.8rem)',
+          fontSize: 'clamp(0.8rem, 4vw, 1.8rem)', // Better mobile scaling
           marginTop: '0.5rem',
           opacity: 0.9
         }}>
           &lt;Department of Computer Science and Engineering&gt;
+        </div>
+        
+        {/* Touch instruction for mobile users */}
+        <div style={{
+          fontSize: 'clamp(0.6rem, 2.5vw, 1rem)',
+          marginTop: '1rem',
+          opacity: 0.6,
+          fontStyle: 'italic',
+          display: 'ontouchstart' in window ? 'block' : 'none', // Only show on touch devices
+        }}>
+          Touch and drag to explore the grid
         </div>
       </div>
     </div>

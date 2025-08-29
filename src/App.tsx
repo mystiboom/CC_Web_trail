@@ -13,10 +13,10 @@ export default function App() {
         <div className="brand">⚛ Decoding Bio</div>
         <div className="links">
           <button>ABOUT</button>
-          <button>NEWSLETTER</button>
-          <button>REPORTS</button>
+          <button>HOME</button>
+          <button>EVENTS</button>
+          <button>BLOGS</button>
           <button>CONTACT</button>
-          <button>JOIN</button>
         </div>
         <button className="subscribe">SUBSCRIBE</button>
       </nav>
